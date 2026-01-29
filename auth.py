@@ -2,9 +2,26 @@ import streamlit as st
 import sqlite3
 import hashlib
 
+#st.title("Interview Mate")
+st.markdown(
+    "<h1 style='text-align: center;'>Interview Mate</h1>",
+    unsafe_allow_html=True
+)
+
+        
+
 # ---------------- DATABASE ----------------
 conn = sqlite3.connect("users.db", check_same_thread=False)
 c = conn.cursor()
+
+c.execute("""
+CREATE TABLE IF NOT EXISTS progress (
+    user_id INTEGER,
+    value INTEGER
+)
+""")
+conn.commit()
+
 
 c.execute("""
 CREATE TABLE IF NOT EXISTS users (
@@ -20,21 +37,27 @@ conn.commit()
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
+def save_progress(user_id, value):
+    c.execute("DELETE FROM progress WHERE user_id=?", (user_id,))
+    c.execute("INSERT INTO progress VALUES (?,?)", (user_id, value))
+    conn.commit()
+
+def load_progress(user_id):
+    c.execute("SELECT value FROM progress WHERE user_id=?", (user_id,))
+    row = c.fetchone()
+    return row[0] if row else 0
 
 
 
 
-
-
-# LOGIN PAGE
-# --------------------------------------------------
+# ---------------- LOGIN PAGE ----------------
 
 def show_auth():
 
  if st.session_state.page == "login" and st.session_state.user is None:
 
-    #st.markdown("<div class='auth-card'>", unsafe_allow_html=True)
-    st.markdown("<div class='auth-title'>Welcome back</div>", unsafe_allow_html=True)
+    st.markdown("<div class='auth-card'>", unsafe_allow_html=True)
+    #st.markdown("<div class='auth-title'>Welcome back</div>", unsafe_allow_html=True)
     st.markdown("<div class='auth-sub'>Sign in to continue</div>", unsafe_allow_html=True)
 
     with st.form("login_form"):
@@ -65,9 +88,12 @@ def show_auth():
 # --------------------------------------------------
 # REGISTER PAGE
 # --------------------------------------------------
+
+    
+
  elif st.session_state.page == "register":
 
-    #st.markdown("<div class='auth-card'>", unsafe_allow_html=True)
+    st.markdown("<div class='auth-card'>", unsafe_allow_html=True)
     st.markdown("<div class='auth-title'>Create account</div>", unsafe_allow_html=True)
     st.markdown("<div class='auth-sub'>Join AI Interview Mate</div>", unsafe_allow_html=True)
 
@@ -98,3 +124,5 @@ def show_auth():
         st.session_state.page = "login"
 
     st.markdown("</div>", unsafe_allow_html=True)
+
+  

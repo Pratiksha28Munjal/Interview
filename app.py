@@ -9,6 +9,17 @@ from auth import *
 
 
 
+
+
+st.set_page_config(
+    page_title="AI Interview Mate",
+    layout="centered",
+    initial_sidebar_state="collapsed"
+)
+
+
+
+
 # ---------------- SESSION INIT ----------------
 if "page" not in st.session_state:
     st.session_state.page = "login"
@@ -16,8 +27,8 @@ if "page" not in st.session_state:
 if "user" not in st.session_state:
     st.session_state.user = None
 
-st.write("PAGE:", st.session_state.page)
-st.write("USER:", st.session_state.user)
+#st.write("PAGE:", st.session_state.page)
+#st.write("USER:", st.session_state.user)
 
 
 
@@ -25,12 +36,6 @@ st.write("USER:", st.session_state.user)
 if st.session_state.page in ["login", "register"]:
     auth.show_auth()
     st.stop()
-
-
-
-
-
-
 
 
 
@@ -49,6 +54,76 @@ st.set_page_config(
 # ---------------- CSS ----------------
 st.markdown("""
 <style>
+            
+
+
+st.markdown(
+    "<h1 style='text-align: center;'>Interview Mate</h1>",
+    unsafe_allow_html=True
+)
+            
+
+
+/* FULL WHITE PAGE FORCE */
+.stApp {
+    background-color: #ffffff !important;
+}
+
+/* Remove dark theme */
+html, body {
+    background-color: #ffffff !important;
+}
+
+/* Center auth card */
+.auth-card {
+    max-width: 420px;
+    margin: auto;
+    margin-top: 90px;
+    padding: 40px;
+    border-radius: 18px;
+    background: white;
+    box-shadow: 0px 10px 40px rgba(0,0,0,0.15);
+}
+
+/* Titles */
+.auth-title {
+    font-size: 28px;
+    font-weight: 700;
+    text-align: center;
+    color: black;
+}
+
+.auth-sub {
+    text-align: center;
+    color: #666;
+    margin-bottom: 25px;
+}
+
+/* Inputs */
+input {
+    background: #f3f3f3 !important;
+    color: black !important;
+}
+
+/* Buttons */
+button {
+    background: black !important;
+    color: white !important;
+    border-radius: 10px !important;
+    height: 42px !important;
+}
+
+/* Labels */
+label {
+    color: black !important;
+}
+
+
+
+            
+
+
+
 
 /* App background */
 .stApp {
@@ -60,7 +135,7 @@ background:#F8FAFC;
 font-size:38px;
 font-weight:700;
 text-align:center;
-color:#0F172A;
+color:#111b33;
 margin-bottom:25px;
 }
 
@@ -69,7 +144,7 @@ margin-bottom:25px;
 font-size:18px;
 font-weight:600;
 text-align:left;
-color:#0F172A;
+color:#f0f8ff;
 margin-bottom:15px;
 }
 
@@ -85,7 +160,11 @@ border:1px solid #E5E7EB;
 border-left:6px solid #2563EB;
 color:#334155;
 }
-
+ 
+.dashboard-card{
+width:200px;
+} 
+                        
 .dashboard-card:hover {
 transform:translateY(-6px);
 }
@@ -124,6 +203,26 @@ color:white;
 margin-bottom:30px;
 }
 
+/* Fix input + selectbox text color */
+input, textarea {
+    color: black !important;
+}
+
+div[data-baseweb="select"] span {
+    color: black !important;
+}
+
+/* Dropdown options */
+div[role="listbox"] * {
+    color: black !important;
+}
+
+/* Placeholder labels */
+label {
+    color: #0F172A !important;
+}
+
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -152,8 +251,21 @@ def hash_password(password):
 if "page" not in st.session_state:
     st.session_state.page = "login"
 
-if "progress" not in st.session_state:
-    st.session_state.progress = 0
+if "mock_question" not in st.session_state:
+    st.session_state.mock_question = ""
+
+if "mock_domain" not in st.session_state:
+    st.session_state.mock_domain = ""
+
+if "mock_step" not in st.session_state:
+    st.session_state.mock_step = 0
+
+if "mock_result" not in st.session_state:
+    st.session_state.mock_result = ""
+
+if "user_answer" not in st.session_state:
+    st.session_state.user_answer = ""
+
 
 if "saved" not in st.session_state:
     st.session_state.saved = []
@@ -173,7 +285,7 @@ if "company_questions" not in st.session_state:
 
 # ---------------- OLLAMA CONFIG ----------------
 OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL = "llama3.2"
+MODEL = "llama3.2:1b"
 
 def generate_roadmap(goal, duration, level):
     prompt = f"""
@@ -254,6 +366,58 @@ Do not add extra explanation.
     except:
         return "❌ Ollama is not running. Please start Ollama."
     
+def generate_mock_question(domain, level):
+
+    prompt = f"""
+Act as technical interviewer.
+
+Domain: {domain}
+Level: {level}
+
+Ask ONE interview question only.
+No explanation.
+"""
+
+    try:
+        r = ollama.chat(
+            model=MODEL,
+            messages=[{"role":"user","content":prompt}]
+        )
+        return r["message"]["content"]
+    except:
+        return "Ollama error"
+    
+def evaluate_answer(question, user_answer):
+
+    prompt = f"""
+You are a technical interviewer.
+
+Question:
+{question}
+
+User Answer:
+{user_answer}
+
+Now provide:
+
+1. Correct Answer (short)
+2. Feedback on user's answer
+3. Score out of 10
+
+Keep simple.
+"""
+
+    try:
+        r = ollama.chat(
+            model=MODEL,
+            messages=[{"role":"user","content":prompt}]
+        )
+        return r["message"]["content"]
+    except:
+        return "Evaluation error"
+
+
+    
 
 
 def generate_company_questions(company, role):
@@ -306,7 +470,7 @@ Resume:
 """
 
     response = ollama.chat(
-        model="llama3.2",
+        model="llama3.2:1b",
         messages=[{"role": "user", "content": prompt}],
         options={"temperature": 0.3}
     )
@@ -329,7 +493,7 @@ Resume:
 """
 
     response = ollama.chat(
-        model="llama3.2",
+        model="llama3.2:1b",
         messages=[{"role": "user", "content": prompt}],
         options={"temperature": 0.4}
     )
@@ -360,8 +524,8 @@ if st.session_state.page != "login":
            st.session_state.page = "question_bank"
 
 
-        if st.button(" Progress"):
-           st.session_state.page = "progress"
+        if st.button("Mock Interview"):
+           st.session_state.page = "mock"
            st.rerun()
 
         if st.button(" Saved"):
@@ -386,7 +550,6 @@ if st.session_state.page == "dashboard":
     </div>
     """,unsafe_allow_html=True)
 
-    
     c1,c2,c3,c4,c5=st.columns(5)
 
     with c1:
@@ -399,32 +562,35 @@ if st.session_state.page == "dashboard":
     with c2:
         st.markdown("<div class='dashboard-card'><h3>Resume</h3></div>",unsafe_allow_html=True)
 
-        if st.button("Open Resume"):
-            st.session_state.page="resume"
-            st.rerun()
+        #if st.button("Open Resume"):
+           # st.session_state.page="resume"
+           # st.rerun()
 
     with c3:
         st.markdown("<div class='dashboard-card'><h3>Question Bank</h3></div>",unsafe_allow_html=True)
 
-        if st.button("Open Question Bank"):
-            st.session_state.page="question_bank"
-            st.rerun()
+        #if st.button("Open Question Bank"):
+           # st.session_state.page="question_bank"
+           # st.rerun()
 
     with c4:
-        st.markdown("<div class='dashboard-card'><h3>Progress</h3></div>",unsafe_allow_html=True)
+        st.markdown("<div class='dashboard-card'><h3>Mock Interview</h3></div>",unsafe_allow_html=True)
 
-        if st.button("Open Progress"):
-            st.session_state.page="progress"
-            st.rerun()
+        #if st.button(" Mock Interview", key="goto_mock"):
+          # st.session_state.page = "mock"
+          # st.rerun()
+
 
     with c5:
         st.markdown("<div class='dashboard-card'><h3>Saved</h3></div>",unsafe_allow_html=True)
 
 
-        if st.button("Open Saved"):
-            st.session_state.page="saved"
-            st.rerun()
-
+        #if st.button("Open Saved"):
+           # st.session_state.page="saved"
+           # st.rerun()
+    
+    
+    
 # ---------------- ROADMAP PAGE ----------------
 elif st.session_state.page == "roadmap":
 
@@ -464,55 +630,73 @@ elif st.session_state.page == "result":
                 unsafe_allow_html=True
             )
 
-    progress = st.slider("Your Learning Progress %", 0, 100)
-    st.progress(progress)
+   #progress = st.slider("Your Learning Progress %", 0, 100)
+    #st.progress(progress)
 
-    st.download_button(" Download Roadmap", st.session_state.roadmap_output)
-    st.download_button(
-    label="Save Roadmap",
-    data=st.session_state.roadmap_output,
-    file_name="ai_roadmap.txt",
-    mime="text/plain"
-)
+    st.markdown("<br>", unsafe_allow_html=True)
 
-    col1, col2 = st.columns(2)
+# -------- Top Row Buttons --------
+    col1, col2, col3 = st.columns(3)
 
     with col1:
-        if st.button(" Generate New"):
-            st.session_state.page = "roadmap"
-            st.rerun()
+      if st.button("Download Roadmap", use_container_width=True):
+        pass
 
     with col2:
-        if st.button(" Dashboard"):
-            st.session_state.page = "dashboard"
-            st.rerun()
+       if st.button("Save Roadmap", use_container_width=True):
+        pass
 
-    # ---------------- PROGRESS PAGE ----------------
-elif st.session_state.page == "progress":
+    with col3:
+       if st.button("Generate New", use_container_width=True):
+        pass
 
-    st.markdown("<div class='main-title'>Learning Progress</div>", unsafe_allow_html=True)
+# Space
+    st.markdown("<br><br>", unsafe_allow_html=True)
 
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
+# -------- Center Dashboard Button --------
+    left, center, right = st.columns([2,1,2])
 
-    st.session_state.progress = st.slider(
-        "Update your progress %",
-        0, 100,
-        st.session_state.progress
-    )
-
-    st.progress(st.session_state.progress)
-
-    st.success(f"Current Progress: {st.session_state.progress}%")
-
-    if st.button("Reset Progress"):
-        st.session_state.progress = 0
-        st.rerun()
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    if st.button("🏠 Back to Dashboard"):
+    with center:
+      if st.button("Dashboard", use_container_width=True):
         st.session_state.page = "dashboard"
         st.rerun()
+
+    # ---------------- Mock Page ----------------
+elif st.session_state.page == "mock":
+
+    st.markdown("<div class='main-title'>Mock Interview</div>", unsafe_allow_html=True)
+
+    domain = st.selectbox(
+        "Choose Domain",
+        ["Python","Java","Web Development","Data Science","AI/ML"]
+    )
+
+    level = st.selectbox(
+        "Difficulty Level",
+        ["Beginner","Intermediate","Advanced"]
+    )
+
+    # --- Buttons in one row ---
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+      start = st.button("Start Interview", use_container_width=True)
+
+    with col2:
+      submit = st.button("Submit Answer", use_container_width=True)
+
+    with col3:
+      next_q = st.button("Next Question", use_container_width=True)
+
+    st.write("")  # space
+
+# --- End interview centered ---
+    colA, colB, colC = st.columns([1,2,1])
+
+    with colB:
+      end = st.button("End Interview", use_container_width=True)
+
+
 
 # ---------------- SAVED ROADMAPS PAGE ----------------
 elif st.session_state.page == "saved":
@@ -528,7 +712,7 @@ elif st.session_state.page == "saved":
                 unsafe_allow_html=True
             )
 
-    if st.button("🏠 Back to Dashboard"):
+    if st.button(" Back to Dashboard"):
         st.session_state.page = "dashboard"
         st.rerun()
 
@@ -547,12 +731,12 @@ elif st.session_state.page == "resume":
         col1, col2 = st.columns(2)
 
         with col1:
-            if st.button("📝 Generate Summary"):
+            if st.button(" Generate Summary"):
                 with st.spinner("Generating summary..."):
                     st.session_state.summary = generate_resume_summary(resume_text)
 
         with col2:
-            if st.button("🎯 Interview Questions"):
+            if st.button(" Interview Questions"):
                 with st.spinner("Generating questions..."):
                     st.session_state.questions = generate_interview_questions(resume_text)
 
@@ -564,10 +748,44 @@ elif st.session_state.page == "resume":
             st.markdown("<div class='section-title'>Interview Questions</div>", unsafe_allow_html=True)
             st.markdown(f"<div class='card'>{st.session_state.questions.replace(chr(10), '<br>')}</div>", unsafe_allow_html=True)
 
-    if st.button("🏠 Back to Dashboard"):
+    if st.button(" Back to Dashboard"):
         st.session_state.page = "dashboard"
         st.rerun()
 
+#----------------Question Bank-----------------------------#
 
+elif st.session_state.page == "question_bank":
+
+    st.markdown("<div class='main-title'>Question Bank</div>", unsafe_allow_html=True)
+
+    tab1, tab2 = st.tabs([" Company Based", " General Interview"])
+
+    # -------- COMPANY BASED QUESTIONS --------
+    with tab1:
+        st.markdown("<div class='section-title'>Company Based Interview Questions</div>", unsafe_allow_html=True)
+
+        company = st.text_input("Company Name (e.g. Google, Amazon)")
+        role = st.text_input("Role (e.g. Software Engineer, Frontend Developer)")
+
+        if st.button("Generate Company Questions"):
+            if company.strip() == "" or role.strip() == "":
+                st.warning("Please enter both company and role.")
+            else:
+                with st.spinner("Generating real interview questions..."):
+                    st.session_state.company_questions = generate_company_questions(company, role)
+
+        if st.session_state.company_questions:
+            st.markdown(
+                f"<div class='card'>{st.session_state.company_questions.replace(chr(10), '<br>')}</div>",
+                unsafe_allow_html=True
+            )
+
+    # -------- GENERAL QUESTIONS (OPTIONAL) --------
+    with tab2:
+        st.info("General interview questions coming soon 🚀")
+
+    if st.button(" Back to Dashboard"):
+        st.session_state.page = "dashboard"
+        st.rerun()
 
 
