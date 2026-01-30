@@ -5,6 +5,7 @@ import ollama
 import hashlib
 import sqlite3
 import auth
+import random
 from auth import *
 
 
@@ -53,8 +54,8 @@ st.set_page_config(
 
 # ---------------- CSS ----------------
 st.markdown("""
-<style>
-            
+<style> 
+                        
 
 
 st.markdown(
@@ -251,20 +252,18 @@ def hash_password(password):
 if "page" not in st.session_state:
     st.session_state.page = "login"
 
-if "mock_question" not in st.session_state:
-    st.session_state.mock_question = ""
+if "mock_active" not in st.session_state:
+    st.session_state.mock_active = False
 
-if "mock_domain" not in st.session_state:
-    st.session_state.mock_domain = ""
+if "mock_q" not in st.session_state:
+    st.session_state.mock_q = ""
 
-if "mock_step" not in st.session_state:
-    st.session_state.mock_step = 0
+if "mock_a" not in st.session_state:
+    st.session_state.mock_a = ""
 
-if "mock_result" not in st.session_state:
-    st.session_state.mock_result = ""
+if "mock_index" not in st.session_state:
+    st.session_state.mock_index = 0
 
-if "user_answer" not in st.session_state:
-    st.session_state.user_answer = ""
 
 
 if "saved" not in st.session_state:
@@ -285,7 +284,7 @@ if "company_questions" not in st.session_state:
 
 # ---------------- OLLAMA CONFIG ----------------
 OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL = "llama3.2:1b"
+MODEL = "llama3.2"
 
 def generate_roadmap(goal, duration, level):
     prompt = f"""
@@ -366,55 +365,41 @@ Do not add extra explanation.
     except:
         return "❌ Ollama is not running. Please start Ollama."
     
+
 def generate_mock_question(domain, level):
 
     prompt = f"""
-Act as technical interviewer.
+You are technical interviewer.
 
 Domain: {domain}
 Level: {level}
 
-Ask ONE interview question only.
-No explanation.
-"""
+Generate ONE interview question with its ANSWER.
 
-    try:
-        r = ollama.chat(
-            model=MODEL,
-            messages=[{"role":"user","content":prompt}]
-        )
-        return r["message"]["content"]
-    except:
-        return "Ollama error"
-    
-def evaluate_answer(question, user_answer):
-
-    prompt = f"""
-You are a technical interviewer.
+Format EXACTLY:
 
 Question:
-{question}
+...
 
-User Answer:
-{user_answer}
-
-Now provide:
-
-1. Correct Answer (short)
-2. Feedback on user's answer
-3. Score out of 10
-
-Keep simple.
+Answer:
+...
 """
 
     try:
         r = ollama.chat(
-            model=MODEL,
-            messages=[{"role":"user","content":prompt}]
+            model="llama3.2",
+            messages=[{"role": "user", "content": prompt}]
         )
-        return r["message"]["content"]
+
+        txt = r["message"]["content"]
+
+        q = txt.split("Answer:")[0].replace("Question:", "").strip()
+        a = txt.split("Answer:")[1].strip()
+
+        return q, a
+
     except:
-        return "Evaluation error"
+        return "Connection error", ""
 
 
     
@@ -470,7 +455,7 @@ Resume:
 """
 
     response = ollama.chat(
-        model="llama3.2:1b",
+        model="llama3.2",
         messages=[{"role": "user", "content": prompt}],
         options={"temperature": 0.3}
     )
@@ -493,7 +478,7 @@ Resume:
 """
 
     response = ollama.chat(
-        model="llama3.2:1b",
+        model="llama3.2",
         messages=[{"role": "user", "content": prompt}],
         options={"temperature": 0.4}
     )
@@ -666,35 +651,80 @@ elif st.session_state.page == "mock":
 
     st.markdown("<div class='main-title'>Mock Interview</div>", unsafe_allow_html=True)
 
-    domain = st.selectbox(
-        "Choose Domain",
-        ["Python","Java","Web Development","Data Science","AI/ML"]
-    )
+    domain = st.selectbox("Select Domain", ["Python", "Data Science", "Web Development"])
+    level = st.selectbox("Select Level", ["Beginner", "Intermediate", "Advanced"])
 
-    level = st.selectbox(
-        "Difficulty Level",
-        ["Beginner","Intermediate","Advanced"]
-    )
+    if not st.session_state.mock_active:
+
+        if st.button("▶ Start Interview", key="start_mock"):
+
+            q, a = generate_mock_question(domain, level)
+
+            st.session_state.mock_q = q
+            st.session_state.mock_a = a
+            st.session_state.mock_active = True
+            st.session_state.mock_index = 1
+
+            st.rerun()
+
+    else:
+
+        st.markdown(f"### Question {st.session_state.mock_index}")
+        st.info(st.session_state.mock_q)
+
+        user_answer = st.text_area("Your Answer")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            if st.button("Submit", key="submit_mock"):
+                st.session_state.show_ans = True
+
+        with col2:
+            if st.button("Next", key="next_mock"):
+
+                q, a = generate_mock_question(domain, level)
+
+                st.session_state.mock_q = q
+                st.session_state.mock_a = a
+                st.session_state.mock_index += 1
+                st.session_state.show_ans = False
+
+                st.rerun()
+
+        with col3:
+            if st.button("End", key="end_mock"):
+
+                st.session_state.mock_active = False
+                st.session_state.mock_index = 0
+                st.session_state.page = "dashboard"
+
+                st.rerun()
+
+        if "show_ans" in st.session_state and st.session_state.show_ans:
+            st.success("Correct Answer:")
+            st.write(st.session_state.mock_a)
+        
 
     # --- Buttons in one row ---
-    col1, col2, col3 = st.columns(3)
+    #col1, col2, col3 = st.columns(3)
 
-    with col1:
-      start = st.button("Start Interview", use_container_width=True)
+    #with col1:
+      #start = st.button("Start Interview", use_container_width=True)
 
-    with col2:
-      submit = st.button("Submit Answer", use_container_width=True)
+   # with col2:
+      #submit = st.button("Submit Answer", use_container_width=True)
 
-    with col3:
-      next_q = st.button("Next Question", use_container_width=True)
+   # with col3:
+      #next_q = st.button("Next Question", use_container_width=True)
 
-    st.write("")  # space
+   # st.write("")  # space
 
 # --- End interview centered ---
-    colA, colB, colC = st.columns([1,2,1])
+   # colA, colB, colC = st.columns([1,2,1])
 
-    with colB:
-      end = st.button("End Interview", use_container_width=True)
+    #with colB:
+      #end = st.button("End Interview", use_container_width=True)
 
 
 
